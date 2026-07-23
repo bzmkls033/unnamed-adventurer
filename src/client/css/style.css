@@ -248,6 +248,8 @@ input:focus, select:focus { border-color: var(--accent); }
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 .tile:hover { transform: scale(1.15); z-index: 10; }
+.tile-current { box-shadow: 0 0 12px var(--gold), 0 0 24px rgba(255,215,0,0.4); border-color: var(--gold); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 12px var(--gold); } 50% { box-shadow: 0 0 20px var(--gold), 0 0 40px rgba(255,215,0,0.3); } }
 .tile.type-gold { background: linear-gradient(135deg, #f39c12, #e67e22); }
 .tile.type-item { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
 .tile.type-heal { background: linear-gradient(135deg, #e74c3c, #c0392b); }

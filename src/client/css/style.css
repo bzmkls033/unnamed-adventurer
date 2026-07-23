@@ -91,8 +91,8 @@ input:focus, select:focus { border-color: var(--accent); }
 }
 .home-actions input { width: 100%; }
 .home-actions .btn { width: 100%; }
-.join-row { display: flex; gap: 8px; }
-.join-row input { flex: 1; }
+.join-row { display: flex; gap: 8px; position: relative; z-index: 1; }
+.join-row input { flex: 1; pointer-events: auto; }
 .home-features {
   display: flex;
   gap: 20px;

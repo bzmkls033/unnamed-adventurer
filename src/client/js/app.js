@@ -128,6 +128,16 @@ document.getElementById('btn-start').onclick = () => {
   });
 };
 
+// 离开房间
+document.getElementById('btn-leave').onclick = () => {
+  socket.disconnect();
+  socket.connect();
+  myPlayerId = null;
+  currentRoomCode = null;
+  gameState = null;
+  showScreen('home');
+};
+
 // ══════════════════════════════════════
 // 游戏状态同步
 // ══════════════════════════════════════

@@ -123,26 +123,7 @@ select { cursor: pointer; }
 }
 .home-actions input { width: 100%; height: 48px; font-size: 17px; }
 .home-actions .btn { width: 100%; height: 48px; font-size: 17px; }
-.join-row {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-}
-.join-row input {
-  flex: 1;
-  min-width: 0;
-  height: 52px;
-  font-size: 20px;
-  padding: 14px 18px;
-  text-align: center;
-  letter-spacing: 6px;
-}
-.join-row .btn {
-  height: 52px;
-  min-width: 80px;
-  font-size: 17px;
-  flex-shrink: 0;
-}
+/* join-row removed, using inline styles */
 .home-features {
   display: flex;
   gap: 16px;

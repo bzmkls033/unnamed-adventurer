@@ -52,13 +52,16 @@ input[type="text"], input[type="number"], select {
   padding: 10px 16px;
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: var(--radius);
-  background: var(--bg2);
-  color: var(--text);
+  background: #0f1a30;
+  color: #ffffff !important;
   font-size: 16px;
   outline: none;
   transition: border-color 0.2s;
+  -webkit-text-fill-color: #ffffff;
+  caret-color: #ffffff;
 }
 input:focus, select:focus { border-color: var(--accent); }
+input::placeholder { color: rgba(255,255,255,0.5); -webkit-text-fill-color: rgba(255,255,255,0.5); }
 
 .screen { display: none; min-height: 100vh; }
 .screen.active { display: flex; }
@@ -88,6 +91,8 @@ input:focus, select:focus { border-color: var(--accent); }
   flex-direction: column;
   gap: 12px;
   width: 300px;
+  position: relative;
+  z-index: 10;
 }
 .home-actions input { width: 100%; }
 .home-actions .btn { width: 100%; }

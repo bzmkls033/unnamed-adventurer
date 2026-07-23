@@ -179,8 +179,10 @@ io.on('connection', (socket) => {
     if (!room || !room.game) return;
     const gp = room.game.players.find(p => p.socketId === socket.id);
     if (!gp) return;
-    const targetGp = room.game.players.find(p => p.socketId === data.targetSocketId);
+    // 支持通过socketId或gameId找目标
+    const targetGp = room.game.players.find(p => p.socketId === data.targetSocketId || p.id === data.targetSocketId);
     if (!targetGp) { cb && cb({ ok: false, msg: '目标不存在' }); return; }
+    if (targetGp.id === gp.id) { cb && cb({ ok: false, msg: '不能和自己交易' }); return; }
     const result = room.game.createTrade(gp.id, targetGp.id, data.offer || {}, data.request || {});
     cb && cb(result);
     broadcastState(room);

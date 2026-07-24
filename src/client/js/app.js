@@ -358,10 +358,13 @@ function updateButtons(state) {
   const myTurn = myPlayerIndex === state.currentTurn;
   const phase = state.turnPhase;
   const alive = me && me.isAlive && !me.surrendered;
+  const hasPending = !!state.pendingEvent || !!state.miniGame;
   document.getElementById('btn-roll').disabled = !(myTurn && phase === 'beforeMove' && alive);
   document.getElementById('btn-use-item').disabled = !alive;
-  document.getElementById('btn-trigger').disabled = !(myTurn && phase === 'event' && !state.pendingEvent && alive);
-  document.getElementById('btn-end-turn').disabled = !(myTurn && phase === 'event' && !state.pendingEvent && alive);
+  // 触发事件按钮已废弃（事件自动触发），保持禁用
+  document.getElementById('btn-trigger').disabled = true;
+  // 有待处理事件/小游戏时不能结束回合
+  document.getElementById('btn-end-turn').disabled = !(myTurn && phase === 'event' && !hasPending && alive);
   document.getElementById('btn-surrender').disabled = !alive;
   document.getElementById('btn-shop').disabled = !alive;
   document.getElementById('btn-trade').disabled = !alive;
@@ -391,6 +394,17 @@ document.getElementById('btn-roll').onclick = () => {
     if (res.ok) {
       if (res.stunned) { toast('你被眩晕了！'); return; }
       toast(`🎲 掷出 ${res.dice}！移动${res.moveSteps}格`, 'gold');
+      // 自动触发的事件结果
+      if (res.event) {
+        toast(res.event.msg, 'success');
+        // 需要玩家操作的事件：显示对应弹窗
+        if (res.event.type === 'boss' && res.event.boss) {
+          showBossModal(res.event.boss);
+        } else if (res.event.type === 'minigame' && res.event.gameId) {
+          showMiniGame(res.event.gameId);
+        }
+        // mystery 事件由 checkEventModal 根据 pendingEvent 自动弹出
+      }
     } else toast(res.msg);
   });
 };
@@ -448,22 +462,21 @@ window.useItemWithTarget = (itemId, targetId) => {
   });
 };
 
-// 触发事件
+// 触发事件（已废弃：事件在掷骰时自动触发）
 document.getElementById('btn-trigger').onclick = () => {
-  socket.emit('triggerEvent', (res) => {
-    if (res.ok) {
-      if (res.type === 'boss') showBossModal(res.boss);
-      else if (res.type === 'minigame') showMiniGame(res.gameId);
-      else if (res.type === 'shop') showShop(res.shopType);
-      else toast(res.msg, 'success');
-    } else toast(res.msg);
-  });
+  toast('事件已自动触发');
 };
 
 window.makeChoice = (choiceId) => {
   socket.emit('makeChoice', choiceId, (res) => {
-    if (res.ok) { toast(res.msg, 'success'); closeModal('modal-event'); }
-    else toast(res.msg);
+    if (res.ok) {
+      toast(res.msg, 'success');
+      closeModal('modal-event');
+      // 选择完成后自动结束回合
+      socket.emit('endTurn', (endRes) => {
+        if (endRes.ok) toast(endRes.extraTurn ? '⏳ 额外回合！' : '⏭ 回合结束');
+      });
+    } else toast(res.msg);
   });
 };
 
@@ -556,12 +569,26 @@ window.attackBossAction = (bossId, itemId) => {
   socket.emit('attackBoss', {bossId, itemIds: [itemId]}, (res) => {
     if (res.ok) {
       toast(res.msg, 'success');
-      if (res.bossDefeated) { toast('🎉 Boss被击败了！', 'gold'); closeModal('modal-boss'); }
-      else if (res.bossHp !== undefined) {
+      if (res.bossDefeated) {
+        toast('🎉 Boss被击败了！', 'gold');
+        closeModal('modal-boss');
+        // Boss被击败后自动结束回合
+        socket.emit('endTurn', (endRes) => {
+          if (endRes.ok) toast(endRes.extraTurn ? '⏳ 额外回合！' : '⏭ 回合结束');
+        });
+      } else if (res.bossHp !== undefined) {
         const maxHp = 50;
         document.getElementById('boss-hp').innerHTML = `<div class="boss-hp-fill" style="width:${Math.max(0,(res.bossHp/maxHp)*100)}%">${res.bossHp}/${maxHp}</div>`;
       }
     } else toast(res.msg);
+  });
+};
+
+// Boss弹窗关闭时自动结束回合
+window.closeBossModal = () => {
+  closeModal('modal-boss');
+  socket.emit('endTurn', (res) => {
+    if (res.ok) toast(res.extraTurn ? '⏳ 额外回合！' : '⏭ 回合结束');
   });
 };
 
@@ -582,8 +609,16 @@ function showMiniGame(gameId) {
 
 window.playMiniGame = (action, bet) => {
   socket.emit('miniGameAction', {action, bet}, (res) => {
-    if (res.ok) { toast(res.msg, res.win !== false ? 'gold' : ''); if (res.bust || res.win !== undefined || res.prize) closeModal('modal-minigame'); }
-    else toast(res.msg);
+    if (res.ok) {
+      toast(res.msg, res.win !== false ? 'gold' : '');
+      if (res.bust || res.win !== undefined || res.prize) {
+        closeModal('modal-minigame');
+        // 小游戏结束后自动结束回合
+        socket.emit('endTurn', (endRes) => {
+          if (endRes.ok) toast(endRes.extraTurn ? '⏳ 额外回合！' : '⏭ 回合结束');
+        });
+      }
+    } else toast(res.msg);
   });
 };
 

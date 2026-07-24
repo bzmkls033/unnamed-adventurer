@@ -270,7 +270,27 @@ class GameEngine {
     this.diceResult = dice;
     this.turnPhase = 'event';
     this.addLog(`${p.name} 掷出 ${dice}，移动到 [${TILE_TYPES[landed?.type]?.name || '未知'}]`);
-    return { ok: true, dice, moveSteps, landedTile: landed };
+
+    // 自动触发格子事件
+    const eventResult = this.triggerEvent(playerId);
+    const needsInput = !!this.pendingEvent || !!this.miniGame || (eventResult.type === 'boss');
+
+    if (!needsInput) {
+      // 不需要玩家操作的事件，自动结束回合
+      this.addLog(`${p.name} 的回合结束`);
+      this.turnPhase = 'start';
+      const extraItem = p.items.find(i => i.extraTurn);
+      if (extraItem) {
+        p.items = p.items.filter(x => x !== extraItem);
+        this.addLog(`${p.name} 使用时间沙漏获得额外回合！`);
+        this.startTurn();
+        return { ok: true, dice, moveSteps, landedTile: landed, event: eventResult, extraTurn: true };
+      }
+      this.nextPlayer();
+    }
+    // 需要玩家操作时（mystery/boss/minigame），保持回合不结束
+
+    return { ok: true, dice, moveSteps, landedTile: landed, event: eventResult, needsInput };
   }
 
   // ── 触发地图事件 ──

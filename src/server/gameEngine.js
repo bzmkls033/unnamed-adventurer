@@ -116,7 +116,11 @@ class GameEngine {
     let msg = '';
 
     // 回复类
-    if (eff.heal) { p.hp = Math.min(p.maxHp, p.hp + eff.heal); msg = `${p.name} 使用${itemDef.name}，恢复${eff.heal}生命`; }
+    if (eff.heal) {
+      if (p.hp >= p.maxHp) return { ok: false, msg: '生命值已满，无需恢复' };
+      p.hp = Math.min(p.maxHp, p.hp + eff.heal);
+      msg = `${p.name} 使用${itemDef.name}，恢复${eff.heal}生命`;
+    }
     else if (eff.revive) { if (p.hp > 0) return { ok: false, msg: '你没有濒死' }; p.hp = eff.revive; msg = `${p.name} 使用${itemDef.name}，复活了！`; }
     else if (eff.cure) { p.poisonTurns = 0; p.cursed = false; msg = `${p.name} 使用${itemDef.name}，解除了负面状态`; }
     else if (eff.healFull) { p.hp = p.maxHp; msg = `${p.name} 恢复了全部生命`; }
@@ -156,17 +160,29 @@ class GameEngine {
       if (!this.frozenPlayers[target.id]) this.frozenPlayers[target.id] = {};
       this.frozenPlayers[target.id].stunMove = true;
       msg = `${p.name} 对 ${target.name} 使用香蕉皮！`;
+      p.items.splice(itemIdx, 1);
+      this.itemsUsedThisTurn++;
+      this.addLog(msg);
+      return { ok: true, msg };
     }
     else if (eff.damage && itemDef.type === '整蛊类') {
       if (!target) return { ok: false, msg: '需要指定目标' };
       this.dealDamageToPlayer(target, eff.damage);
       msg = `${p.name} 对 ${target.name} 使用${itemDef.name}！`;
+      p.items.splice(itemIdx, 1);
+      this.itemsUsedThisTurn++;
+      this.addLog(msg);
+      return { ok: true, msg };
     }
     else if (eff.freezeItems) {
       if (!target) return { ok: false, msg: '需要指定目标' };
       if (!this.frozenPlayers[target.id]) this.frozenPlayers[target.id] = {};
       this.frozenPlayers[target.id].freezeItems = 1;
       msg = `${p.name} 对 ${target.name} 使用冰冻卡！`;
+      p.items.splice(itemIdx, 1);
+      this.itemsUsedThisTurn++;
+      this.addLog(msg);
+      return { ok: true, msg };
     }
     else if (eff.steal) {
       if (!target) return { ok: false, msg: '需要指定目标' };
@@ -176,6 +192,10 @@ class GameEngine {
       target.items = target.items.filter((_, idx) => idx !== target.items.indexOf(stolen));
       p.items.push(stolen);
       msg = `${p.name} 偷取了 ${target.name} 的 ${ITEMS[stolen.id]?.name || '道具'}！`;
+      p.items.splice(itemIdx, 1);
+      this.itemsUsedThisTurn++;
+      this.addLog(msg);
+      return { ok: true, msg };
     }
     // 攻击类
     else if (eff.damage) {
@@ -427,7 +447,8 @@ class GameEngine {
       const itemDef = ITEMS[itemId];
       if (itemDef && itemDef.effect.damage) {
         totalDamage += itemDef.effect.damage;
-        p.items = p.items.filter((it, idx) => { if (it.id === itemId && !it._used) { it._used = true; return false; } return true; });
+        const idx = p.items.findIndex(it => it.id === itemId);
+        if (idx >= 0) p.items.splice(idx, 1);
       }
     }
     if (totalDamage === 0) return { ok: false, msg: '没有有效的攻击道具' };
@@ -586,6 +607,10 @@ class GameEngine {
   endTurn(playerId) {
     const p = this.players.find(x => x.id === playerId);
     if (!p || p.id !== this.getCurrentPlayer()?.id) return { ok: false };
+    // 检查是否有未完成的事件/小游戏/交易
+    if (this.pendingEvent && this.pendingEvent.playerId === playerId) return { ok: false, msg: '请先完成当前事件选择' };
+    if (this.miniGame) return { ok: false, msg: '请先完成小游戏' };
+    if (this.pendingTrade && (this.pendingTrade.fromId === playerId || this.pendingTrade.toId === playerId)) return { ok: false, msg: '请先回应交易请求' };
     this.addLog(`${p.name} 的回合结束`);
     this.turnPhase = 'start';
     // 额外回合检查
@@ -601,15 +626,22 @@ class GameEngine {
       this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
       attempts++;
       if (attempts > this.players.length) { this.checkVictory(); return; }
-    } while (!this.getCurrentPlayer()?.isAlive || this.getCurrentPlayer()?.surrendered || this.frozenPlayers[this.getCurrentPlayer()?.id]?.turns > 0);
+    } while (!this.getCurrentPlayer()?.isAlive || this.getCurrentPlayer()?.surrendered);
 
-    // 处理冻结
     const cp = this.getCurrentPlayer();
-    if (cp && this.frozenPlayers[cp.id]?.turns > 0) {
-      this.frozenPlayers[cp.id].turns--;
-      this.addLog(`${cp.name} 被冻结，跳过回合`);
-      this.nextPlayer();
-      return;
+    if (cp && this.frozenPlayers[cp.id]) {
+      // 处理冰冻卡（跳过回合）
+      if (this.frozenPlayers[cp.id].turns > 0) {
+        this.frozenPlayers[cp.id].turns--;
+        if (this.frozenPlayers[cp.id].turns <= 0) delete this.frozenPlayers[cp.id];
+        this.addLog(`${cp.name} 被冻结，跳过回合`);
+        this.nextPlayer();
+        return;
+      }
+      // stunMove 在 startTurn 中处理（设 stunned=true），这里清理过期状态
+      if (this.frozenPlayers[cp.id].stunMove && !this.frozenPlayers[cp.id].turns) {
+        // stunMove 会在 startTurn 中消费掉，回合开始后自动解除
+      }
     }
     this.startTurn();
   }
